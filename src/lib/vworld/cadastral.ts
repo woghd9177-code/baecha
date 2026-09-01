@@ -1,5 +1,7 @@
+"use client";
+
 import { geometryAreaSqm } from "@/lib/geo/polygonArea";
-import { fetchWithRetry } from "@/lib/httpRetry";
+import { fetchJsonp } from "./jsonp";
 
 export interface CadastralGeometry {
   type: string;
@@ -13,18 +15,20 @@ export interface CadastralParcel {
   geometry: CadastralGeometry;
 }
 
-// VWorld's Data API validates the caller's domain via the Referer header
-// (not just a `domain` query param), which a server-to-server request has to
-// set explicitly — without it every request fails with a generic
-// "INCORRECT_KEY" error even for a perfectly valid, domain-registered key.
-// Set VWORLD_REFERER to whatever domain you registered for this key in the
-// VWorld console (defaults to localhost for local dev).
-const VWORLD_REFERER = process.env.VWORLD_REFERER || "http://localhost";
-
-function parseFeature(feature: {
+interface VWorldFeature {
   geometry: CadastralGeometry;
   properties?: { pnu?: string; addr?: string };
-}): CadastralParcel {
+}
+
+interface VWorldDataResponse {
+  response?: {
+    status?: string;
+    error?: { text?: string };
+    result?: { featureCollection?: { features?: VWorldFeature[] } };
+  };
+}
+
+function parseFeature(feature: VWorldFeature): CadastralParcel {
   const geometry = feature.geometry;
   return {
     pnu: feature.properties?.pnu ?? "",
@@ -34,10 +38,10 @@ function parseFeature(feature: {
   };
 }
 
-async function queryCadastral(geomFilter: string, size: number) {
-  const apiKey = process.env.VWORLD_API_KEY;
+async function queryCadastral(geomFilter: string, size: number): Promise<VWorldFeature[]> {
+  const apiKey = process.env.NEXT_PUBLIC_VWORLD_API_KEY;
   if (!apiKey) {
-    throw new Error("VWORLD_API_KEY is not set");
+    throw new Error("NEXT_PUBLIC_VWORLD_API_KEY is not set");
   }
 
   const url = new URL("https://api.vworld.kr/req/data");
@@ -51,12 +55,7 @@ async function queryCadastral(geomFilter: string, size: number) {
   url.searchParams.set("size", String(size));
   url.searchParams.set("key", apiKey);
 
-  const res = await fetchWithRetry(url.toString(), { headers: { Referer: VWORLD_REFERER } });
-  if (!res.ok) {
-    throw new Error(`VWorld cadastral request failed with status ${res.status}`);
-  }
-
-  const data = await res.json();
+  const data = await fetchJsonp<VWorldDataResponse>(url.toString());
   if (data?.response?.status === "NOT_FOUND") return [];
   if (data?.response?.status !== "OK") {
     const message = data?.response?.error?.text ?? data?.response?.status ?? "알 수 없는 오류";

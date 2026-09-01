@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Label } from "@/components/ui/input";
 import { VWorldMap, type VWorldMapHandle } from "@/components/map/VWorldMap";
 import { useDispatchStore } from "@/lib/store";
+import { geocodeAddress } from "@/lib/vworld/geocode";
 
 export function OfficeForm() {
   const router = useRouter();
@@ -23,13 +24,7 @@ export function OfficeForm() {
     setGeocoding(true);
     setError(null);
     try {
-      const res = await fetch("/api/offices/geocode", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "지오코딩에 실패했습니다");
+      const data = await geocodeAddress(address);
       setCoords({ lat: data.lat, lng: data.lng });
       setAddress(data.roadAddress ?? address);
       mapRef.current?.setMarkers([{ id: "office", lat: data.lat, lng: data.lng }]);

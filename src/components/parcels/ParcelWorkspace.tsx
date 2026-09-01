@@ -7,7 +7,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 import { VWorldMap, type VWorldMapHandle, type LngLatBbox } from "@/components/map/VWorldMap";
 import { useDispatchStore } from "@/lib/store";
 import type { ExcelRowResult } from "@/app/api/parcels/excel-import/route";
-import type { CadastralParcel } from "@/lib/vworld/cadastral";
+import { lookupParcelAtPoint, listParcelsInBbox, type CadastralParcel } from "@/lib/vworld/cadastral";
 import { useShallow } from "zustand/react/shallow";
 
 // Below this zoom level a viewport can span thousands of parcels, so
@@ -132,14 +132,9 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
     setAddingParcel(true);
     setMapError(null);
     try {
-      const res = await fetch("/api/parcels/cadastral", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat, lng }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "필지 조회에 실패했습니다");
-      addCadastralParcel(data, lat, lng);
+      const cadastral = await lookupParcelAtPoint(lat, lng);
+      if (!cadastral) throw new Error("해당 위치에서 필지를 찾을 수 없습니다");
+      addCadastralParcel(cadastral, lat, lng);
     } catch (err) {
       setMapError(err instanceof Error ? err.message : "필지 등록에 실패했습니다");
     } finally {
@@ -177,16 +172,9 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
     const requestId = ++viewportRequestIdRef.current;
     setLoadingBoundaries(true);
     try {
-      const res = await fetch("/api/parcels/cadastral-bbox", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bbox),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "필지 경계 조회에 실패했습니다");
+      const parcels = await listParcelsInBbox(bbox);
       if (requestId !== viewportRequestIdRef.current) return; // a newer viewport superseded this one
 
-      const parcels: CadastralParcel[] = data.parcels;
       boundaryParcelsRef.current = new Map(parcels.map((p) => [p.pnu, p]));
       mapRef.current?.setParcelBoundaries(parcels.map((p) => ({ id: p.pnu, geometry: p.geometry })));
     } catch {
