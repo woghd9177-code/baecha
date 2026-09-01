@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { listParcelsInBbox } from "@/lib/vworld/cadastral";
+import { describeError } from "@/lib/httpRetry";
 
 const bodySchema = z.object({
   minLng: z.number(),
@@ -22,9 +23,6 @@ export async function POST(request: NextRequest) {
     const parcels = await listParcelsInBbox(parsed.data);
     return NextResponse.json({ parcels });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "VWorld 지적도 조회에 실패했습니다" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: describeError(err) }, { status: 502 });
   }
 }

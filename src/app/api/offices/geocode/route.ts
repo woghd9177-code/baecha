@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { geocodeAddress } from "@/lib/vworld/geocode";
+import { describeError } from "@/lib/httpRetry";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -13,9 +14,6 @@ export async function POST(request: NextRequest) {
     const result = await geocodeAddress(address);
     return NextResponse.json(result);
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "지오코딩에 실패했습니다" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: describeError(err) }, { status: 502 });
   }
 }

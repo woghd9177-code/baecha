@@ -30,3 +30,17 @@ export async function fetchWithRetry(
   }
   throw lastError;
 }
+
+// Node's fetch throws a generic `TypeError: fetch failed` for any
+// connection-level problem (DNS, TLS, refused/timed-out connection) and
+// buries the actual reason in `err.cause` (often itself an error with a
+// `.code` like ENOTFOUND/ECONNREFUSED/ETIMEDOUT). Surfacing that in API
+// error responses is what makes "fetch failed" actually diagnosable from
+// the browser instead of needing to go dig through platform function logs.
+export function describeError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as { cause?: unknown }).cause;
+  if (!cause) return err.message;
+  const causeCode = (cause as { code?: string })?.code;
+  return `${err.message} (cause: ${causeCode ? `${causeCode} - ` : ""}${String(cause)})`;
+}

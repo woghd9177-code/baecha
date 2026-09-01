@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { lookupParcelAtPoint } from "@/lib/vworld/cadastral";
+import { describeError } from "@/lib/httpRetry";
 
 const bodySchema = z.object({ lat: z.number(), lng: z.number() });
 
@@ -21,9 +22,6 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json(cadastral);
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "VWorld 지적도 조회에 실패했습니다" },
-      { status: 502 },
-    );
+    return NextResponse.json({ error: describeError(err) }, { status: 502 });
   }
 }
