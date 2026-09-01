@@ -92,6 +92,18 @@ export interface RouteEntry {
   stops: RouteStopEntry[];
 }
 
+// Seed office so a brand-new install has something to look at right away.
+// Coordinates geocoded from the given address via VWorld.
+const DEFAULT_OFFICES: Office[] = [
+  {
+    id: "office-geumcheon-nh",
+    name: "금천농협",
+    address: "전라남도 나주시 금천면 오강리 222-15",
+    lat: 35.033884402511134,
+    lng: 126.75342483518452,
+  },
+];
+
 // Arbitrary placeholder speed values (sqm processed per minute), adjustable
 // from /admin/work-types. 1 ha = 10,000 sqm.
 const DEFAULT_WORK_TYPES: WorkType[] = [
@@ -130,7 +142,7 @@ interface DispatchStoreState {
 export const useDispatchStore = create<DispatchStoreState>()(
   persist(
     (set) => ({
-      offices: [],
+      offices: DEFAULT_OFFICES,
       vehicles: [],
       workTypes: DEFAULT_WORK_TYPES,
       jobs: [],
