@@ -12,21 +12,31 @@ const TRANSIENT_STATUS_CODES = new Set([502, 503, 504]);
 // a generic "fetch failed" with the real reason nested in `cause`). A short
 // retry clears most of either kind without every caller needing its own
 // copy of this logic.
+// A plain Node fetch() looks nothing like a browser request (no
+// User-Agent, no Accept/Accept-Language, ...), which is a common trigger
+// for a WAF or bot-filter to reset the connection outright rather than
+// respond — surfacing as UND_ERR_SOCKET "other side closed" with no HTTP
+// response to even inspect. Confirmed via testing: Connection: close alone
+// (ruling out stale keep-alive reuse) did not fix it, so this fills in the
+// rest of a normal browser's request fingerprint.
+const BROWSER_LIKE_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+};
+
 export async function fetchWithRetry(
   url: string,
   init: RequestInit,
   retries = 3,
   baseDelayMs = 300,
 ): Promise<Response> {
-  // A serverless function can sit frozen between invocations for longer
-  // than a pooled keep-alive connection survives on the far end; undici
-  // then hands out that already-dead socket to the next request and it
-  // fails immediately with UND_ERR_SOCKET "other side closed" — confirmed
-  // to be exactly what was happening here. Connection: close stops undici
-  // from reusing (or offering for reuse) any connection for this request,
-  // trading a little TCP/TLS setup time per call for not silently handing
-  // back a socket the server has already hung up on.
-  const headers = { ...(init.headers as Record<string, string> | undefined), Connection: "close" };
+  const headers = {
+    ...BROWSER_LIKE_HEADERS,
+    ...(init.headers as Record<string, string> | undefined),
+    Connection: "close",
+  };
 
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
