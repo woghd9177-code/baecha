@@ -18,11 +18,21 @@ export async function fetchWithRetry(
   retries = 3,
   baseDelayMs = 300,
 ): Promise<Response> {
+  // A serverless function can sit frozen between invocations for longer
+  // than a pooled keep-alive connection survives on the far end; undici
+  // then hands out that already-dead socket to the next request and it
+  // fails immediately with UND_ERR_SOCKET "other side closed" — confirmed
+  // to be exactly what was happening here. Connection: close stops undici
+  // from reusing (or offering for reuse) any connection for this request,
+  // trading a little TCP/TLS setup time per call for not silently handing
+  // back a socket the server has already hung up on.
+  const headers = { ...(init.headers as Record<string, string> | undefined), Connection: "close" };
+
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) await sleep(baseDelayMs * 2 ** (attempt - 1));
     try {
-      const res = await fetch(url, init);
+      const res = await fetch(url, { ...init, headers });
       if (res.ok || attempt >= retries || !TRANSIENT_STATUS_CODES.has(res.status)) return res;
     } catch (err) {
       lastError = err;
