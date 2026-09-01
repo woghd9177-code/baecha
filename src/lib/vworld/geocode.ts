@@ -1,3 +1,5 @@
+import { fetchWithRetry } from "@/lib/httpRetry";
+
 export interface GeocodeResult {
   lat: number;
   lng: number;
@@ -22,7 +24,7 @@ async function requestCoord(address: string, type: "road" | "parcel") {
   url.searchParams.set("format", "json");
   url.searchParams.set("key", apiKey!);
 
-  const res = await fetch(url.toString(), { headers: { Referer: VWORLD_REFERER } });
+  const res = await fetchWithRetry(url.toString(), { headers: { Referer: VWORLD_REFERER } });
   if (!res.ok) {
     throw new Error(`VWorld geocode request failed with status ${res.status}`);
   }

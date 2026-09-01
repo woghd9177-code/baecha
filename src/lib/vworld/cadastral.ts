@@ -1,4 +1,5 @@
 import { geometryAreaSqm } from "@/lib/geo/polygonArea";
+import { fetchWithRetry } from "@/lib/httpRetry";
 
 export interface CadastralGeometry {
   type: string;
@@ -50,7 +51,7 @@ async function queryCadastral(geomFilter: string, size: number) {
   url.searchParams.set("size", String(size));
   url.searchParams.set("key", apiKey);
 
-  const res = await fetch(url.toString(), { headers: { Referer: VWORLD_REFERER } });
+  const res = await fetchWithRetry(url.toString(), { headers: { Referer: VWORLD_REFERER } });
   if (!res.ok) {
     throw new Error(`VWorld cadastral request failed with status ${res.status}`);
   }
