@@ -225,7 +225,33 @@ export const useDispatchStore = create<DispatchStoreState>()(
         }));
       },
     }),
-    { name: "dispatch-planner-store" },
+    {
+      name: "dispatch-planner-store",
+      version: 1,
+      // v0 -> v1: equipmentType was added to WorkType/Vehicle after some
+      // users already had data persisted. Without this, a browser that
+      // registered its work types before the update keeps rehydrating them
+      // with an empty equipmentType forever (the DEFAULT_WORK_TYPES seed
+      // above only runs for a *brand-new* store, not on rehydration) —
+      // silently breaking the equipment-matched dispatch, since a blank
+      // equipmentType never matches any vehicle's. The three built-in work
+      // types can be backfilled by id; a custom work type someone already
+      // added has no such signal and is left for manual selection (the
+      // "미지정" picker in WorkTypeManager/VehicleManager already covers
+      // that case).
+      migrate: (persistedState, storedVersion) => {
+        const state = persistedState as Partial<DispatchStoreState>;
+        if (storedVersion < 1) {
+          const defaultsById = new Map(DEFAULT_WORK_TYPES.map((wt) => [wt.id, wt.equipmentType]));
+          state.workTypes = state.workTypes?.map((wt) => ({
+            ...wt,
+            equipmentType: wt.equipmentType || defaultsById.get(wt.id) || "",
+          }));
+          state.vehicles = state.vehicles?.map((v) => ({ ...v, equipmentType: v.equipmentType || "" }));
+        }
+        return state as DispatchStoreState;
+      },
+    },
   ),
 );
 
