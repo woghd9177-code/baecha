@@ -132,6 +132,7 @@ interface DispatchStoreState {
   addWorkType: (data: Omit<WorkType, "id">) => WorkType;
   updateWorkType: (id: string, patch: Partial<Omit<WorkType, "id">>) => void;
   addJob: (data: Omit<Job, "id" | "status">) => Job;
+  updateJob: (id: string, patch: Partial<Omit<Job, "id" | "status">>) => void;
   removeJob: (id: string) => void;
   addParcel: (data: Omit<Parcel, "id" | "unassigned">) => Parcel;
   updateParcel: (id: string, patch: Partial<Omit<Parcel, "id">>) => void;
@@ -200,6 +201,12 @@ export const useDispatchStore = create<DispatchStoreState>()(
         const job: Job = { id: createId(), status: "DRAFT", ...data };
         set((state) => ({ jobs: [...state.jobs, job] }));
         return job;
+      },
+
+      updateJob(id, patch) {
+        set((state) => ({
+          jobs: state.jobs.map((j) => (j.id === id ? { ...j, ...patch } : j)),
+        }));
       },
 
       removeJob(id) {
