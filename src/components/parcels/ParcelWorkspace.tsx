@@ -10,15 +10,13 @@ import type { ExcelRowResult } from "@/app/api/parcels/excel-import/route";
 import { lookupParcelAtPoint, listParcelsInBbox, type CadastralParcel } from "@/lib/vworld/cadastral";
 import { useShallow } from "zustand/react/shallow";
 
-// Below this zoom level a viewport can span thousands of parcels, so
-// boundaries aren't fetched until the user zooms in far enough for the
-// result to be a reasonable, glance-able set.
-const MIN_ZOOM_FOR_BOUNDARIES = 13;
-// Below this, the visible area likely exceeds VWorld's 10km^2 query cap and
-// gets clamped to a smaller box around the map center (see
-// clampBboxArea in lib/vworld/cadastral.ts) -- purely a UI hint threshold,
-// not the actual clamp decision, which the server makes per-request.
-const PARTIAL_COVERAGE_ZOOM = 15;
+// Below this zoom level the viewport is wide enough that VWorld's 10km^2
+// query cap kicks in (see clampBboxArea in lib/vworld/cadastral.ts) and
+// only a patch around the map center gets boundaries drawn instead of the
+// whole visible area -- which reads as "some parcels randomly missing"
+// rather than "not zoomed in enough". Waiting until coverage is reliably
+// complete (no clamping needed for a typical map size) is worth the delay.
+const MIN_ZOOM_FOR_BOUNDARIES = 15;
 
 export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { lat: number; lng: number } }) {
   const mapRef = useRef<VWorldMapHandle>(null);
@@ -38,7 +36,6 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
   const [addingParcel, setAddingParcel] = useState(false);
   const [loadingBoundaries, setLoadingBoundaries] = useState(false);
   const [zoomTooLow, setZoomTooLow] = useState(false);
-  const [partialCoverage, setPartialCoverage] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
   // Keyed by pnu, from the most recent viewport fetch -- clicking an
@@ -170,13 +167,11 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
   async function handleViewportChange(bbox: LngLatBbox, zoom: number) {
     if (zoom < MIN_ZOOM_FOR_BOUNDARIES) {
       setZoomTooLow(true);
-      setPartialCoverage(false);
       boundaryParcelsRef.current = new Map();
       mapRef.current?.setParcelBoundaries([]);
       return;
     }
     setZoomTooLow(false);
-    setPartialCoverage(zoom < PARTIAL_COVERAGE_ZOOM);
 
     const requestId = ++viewportRequestIdRef.current;
     setLoadingBoundaries(true);
@@ -282,11 +277,6 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
               </p>
               {zoomTooLow && (
                 <p className="mt-1 text-xs text-amber-600">지도를 더 확대하면 필지 경계가 표시됩니다.</p>
-              )}
-              {!zoomTooLow && partialCoverage && (
-                <p className="mt-1 text-xs text-amber-600">
-                  현재 배율에서는 지도 중심 부근의 필지만 표시됩니다. 더 확대하면 화면 전체에 표시돼요.
-                </p>
               )}
             </Field>
             <VWorldMap
