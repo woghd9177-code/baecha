@@ -39,6 +39,7 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
   const [loadingBoundaries, setLoadingBoundaries] = useState(false);
   const [zoomTooLow, setZoomTooLow] = useState(false);
   const [partialCoverage, setPartialCoverage] = useState(false);
+  const [mapReady, setMapReady] = useState(false);
 
   // Keyed by pnu, from the most recent viewport fetch -- clicking an
   // already-drawn boundary selects straight out of this cache instead of
@@ -53,6 +54,14 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
   useEffect(() => {
     mapRef.current?.setSelectedParcelIds(parcels.map((p) => p.pnu).filter((pnu): pnu is string => Boolean(pnu)));
   }, [parcels]);
+
+  // Shows the office itself as a pin so it's clear where "home base" is
+  // relative to the parcels being picked -- otherwise the map just centers
+  // there with nothing marking the spot.
+  useEffect(() => {
+    if (!mapReady || !center) return;
+    mapRef.current?.setMarkers([{ id: "office", lat: center.lat, lng: center.lng, label: "사무실", color: "#0f172a" }]);
+  }, [mapReady, center]);
 
   function resolveWorkTypeId(name?: string): string {
     if (name) {
@@ -284,6 +293,7 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
               ref={mapRef}
               center={center}
               zoom={13}
+              onReady={() => setMapReady(true)}
               onMapClick={handleMapClick}
               onBoundaryClick={handleBoundaryClick}
               onViewportChange={handleViewportChange}
