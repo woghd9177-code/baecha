@@ -112,7 +112,15 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
     }
   }
 
-  function addCadastralParcel(cadastral: CadastralParcel, lat: number, lng: number) {
+  // Clicking a parcel that's already registered removes it instead of
+  // adding a duplicate -- lets a click act as a toggle for picking a
+  // parcel back off the list, not just picking it.
+  function toggleCadastralParcel(cadastral: CadastralParcel, lat: number, lng: number) {
+    const existing = cadastral.pnu ? parcels.find((p) => p.pnu === cadastral.pnu) : undefined;
+    if (existing) {
+      removeParcel(existing.id);
+      return;
+    }
     addParcel({
       jobId,
       address: cadastral.address || (cadastral.pnu ? `PNU ${cadastral.pnu}` : `${lat.toFixed(6)}, ${lng.toFixed(6)}`),
@@ -140,7 +148,7 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
     try {
       const cadastral = await lookupParcelAtPoint(lat, lng);
       if (!cadastral) throw new Error("해당 위치에서 필지를 찾을 수 없습니다");
-      addCadastralParcel(cadastral, lat, lng);
+      toggleCadastralParcel(cadastral, lat, lng);
     } catch (err) {
       setMapError(err instanceof Error ? err.message : "필지 등록에 실패했습니다");
     } finally {
@@ -161,7 +169,7 @@ export function ParcelWorkspace({ jobId, center }: { jobId: string; center?: { l
       return;
     }
     setMapError(null);
-    addCadastralParcel(cadastral, lat, lng);
+    toggleCadastralParcel(cadastral, lat, lng);
   }
 
   async function handleViewportChange(bbox: LngLatBbox, zoom: number) {
