@@ -8,6 +8,7 @@ import { RouteResultMap } from "@/components/results/RouteResultMap";
 import { useDispatchStore, useStoreHydrated } from "@/lib/store";
 import { useShallow } from "zustand/react/shallow";
 import { formatDateKorean, formatDateRangeKorean } from "@/lib/dateRange";
+import { buildKakaoRouteLinks } from "@/lib/kakao/routeLink";
 
 export default function ResultsPage() {
   const { jobId } = useParams<{ jobId: string }>();
@@ -111,19 +112,46 @@ export default function ResultsPage() {
             </div>
 
             <div className="grid gap-4">
-              {routes.map((route) => (
-                <Card key={route.id}>
-                  <CardTitle>
-                    {vehicleById.get(route.vehicleId)?.label ?? route.vehicleId} ({route.stops.length}개 필지)
-                  </CardTitle>
-                  <p className="mb-3 text-xs text-slate-500">
-                    이동 {Math.round(route.totalTravelMin)}분 · 작업 {Math.round(route.totalWorkMin)}분 · 합계{" "}
-                    {Math.round(route.totalMin)}분
-                  </p>
-                  <ol className="space-y-2 text-sm">
-                    {[...route.stops]
-                      .sort((a, b) => a.sequence - b.sequence)
-                      .map((stop) => {
+              {routes.map((route) => {
+                const orderedStops = [...route.stops].sort((a, b) => a.sequence - b.sequence);
+                const kakaoLinks = buildKakaoRouteLinks([
+                  { name: office.name, lat: office.lat, lng: office.lng },
+                  ...orderedStops.map((stop) => {
+                    const parcel = parcelById.get(stop.parcelId);
+                    return {
+                      name: parcel?.address || `필지 ${stop.sequence + 1}`,
+                      lat: parcel?.lat ?? office.lat,
+                      lng: parcel?.lng ?? office.lng,
+                    };
+                  }),
+                ]);
+
+                return (
+                  <Card key={route.id}>
+                    <CardTitle>
+                      {vehicleById.get(route.vehicleId)?.label ?? route.vehicleId} ({route.stops.length}개 필지)
+                    </CardTitle>
+                    <p className="mb-3 text-xs text-slate-500">
+                      이동 {Math.round(route.totalTravelMin)}분 · 작업 {Math.round(route.totalWorkMin)}분 · 합계{" "}
+                      {Math.round(route.totalMin)}분
+                    </p>
+                    {kakaoLinks.length > 0 && (
+                      <div className="mb-3 flex flex-wrap gap-2">
+                        {kakaoLinks.map((href, i) => (
+                          <a
+                            key={href}
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="rounded-full bg-[#FEE500] px-3 py-1 text-xs font-medium text-[#191600] hover:opacity-90"
+                          >
+                            카카오맵 길찾기{kakaoLinks.length > 1 ? ` (${i + 1}구간)` : ""}
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    <ol className="space-y-2 text-sm">
+                      {orderedStops.map((stop) => {
                         const parcel = parcelById.get(stop.parcelId);
                         return (
                           <li key={stop.parcelId} className="border-b border-brand-50 pb-2 last:border-0">
@@ -138,9 +166,10 @@ export default function ResultsPage() {
                           </li>
                         );
                       })}
-                  </ol>
-                </Card>
-              ))}
+                    </ol>
+                  </Card>
+                );
+              })}
 
               {unassignedParcels.length > 0 && (
                 <Card className="border-amber-300 bg-amber-50">
