@@ -14,6 +14,7 @@ import LineString from "ol/geom/LineString";
 import Polygon from "ol/geom/Polygon";
 import { Circle as CircleStyle, Fill, Stroke, Style, Text } from "ol/style";
 import { fromLonLat, toLonLat } from "ol/proj";
+import { createEmpty, extend as extendExtent } from "ol/extent";
 import type { Coordinate } from "ol/coordinate";
 
 export interface MarkerSpec {
@@ -36,6 +37,14 @@ export interface ParcelBoundarySpec {
   geometry: { type: string; coordinates: unknown };
 }
 
+/** A parcel boundary drawn with an explicit color/label (e.g. one per vehicle route), independent of the selection styling used while picking parcels. */
+export interface ColoredAreaSpec {
+  id: string;
+  geometry: { type: string; coordinates: unknown };
+  color: string;
+  label?: string;
+}
+
 export interface LngLatBbox {
   minLng: number;
   minLat: number;
@@ -49,6 +58,8 @@ export interface VWorldMapHandle {
   setParcelBoundaries: (parcels: ParcelBoundarySpec[]) => void;
   /** Restyles already-drawn boundaries so selected parcels stand out (e.g. ones already added to the job). */
   setSelectedParcelIds: (ids: Iterable<string>) => void;
+  /** Draws parcel boundaries with an explicit color/label per parcel (e.g. route results) instead of the pick/select styling. */
+  setColoredAreas: (areas: ColoredAreaSpec[]) => void;
   fitToMarkers: () => void;
   panTo: (lat: number, lng: number, zoom?: number) => void;
 }
@@ -90,6 +101,13 @@ function geometryToPolygons(geometry: { type: string; coordinates: unknown }): P
 
 function lonLat(point: { lat: number; lng: number }): Coordinate {
   return fromLonLat([point.lng, point.lat]);
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const match = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!match) return hex;
+  const [, r, g, b] = match;
+  return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`;
 }
 
 const BOUNDARY_STYLE = new Style({
@@ -275,13 +293,47 @@ export const VWorldMap = forwardRef<VWorldMapHandle, VWorldMapProps>(function VW
       }
     },
 
+    setColoredAreas(areas) {
+      const source = boundarySourceRef.current;
+      if (!source || !mapReady) return;
+
+      source.clear();
+      for (const area of areas) {
+        for (const polygon of geometryToPolygons(area.geometry)) {
+          const feature = new Feature({ geometry: polygon });
+          feature.set("parcelId", area.id);
+          feature.setStyle(
+            new Style({
+              fill: new Fill({ color: hexToRgba(area.color, 0.3) }),
+              stroke: new Stroke({ color: area.color, width: 2 }),
+              text: area.label
+                ? new Text({
+                    text: area.label,
+                    fill: new Fill({ color: "#ffffff" }),
+                    stroke: new Stroke({ color: area.color, width: 3 }),
+                  })
+                : undefined,
+            }),
+          );
+          source.addFeature(feature);
+        }
+      }
+    },
+
     fitToMarkers() {
       const map = mapRef.current;
-      const source = markerSourceRef.current;
-      if (!map || !source || source.getFeatures().length === 0) return;
-      const extent = source.getExtent();
-      if (!extent) return;
-      map.getView().fit(extent, { padding: [40, 40, 40, 40], maxZoom: 17 });
+      if (!map) return;
+      const combined = createEmpty();
+      let hasContent = false;
+      for (const source of [markerSourceRef.current, boundarySourceRef.current]) {
+        const extent = source && source.getFeatures().length > 0 ? source.getExtent() : null;
+        if (extent) {
+          extendExtent(combined, extent);
+          hasContent = true;
+        }
+      }
+      if (!hasContent) return;
+      map.getView().fit(combined, { padding: [40, 40, 40, 40], maxZoom: 17 });
     },
 
     panTo(lat, lng, zoomLevel) {

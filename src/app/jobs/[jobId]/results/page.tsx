@@ -57,6 +57,7 @@ export default function ResultsPage() {
         lng: parcel?.lng ?? office.lng,
         sequence: s.sequence,
         address: parcel?.address ?? "",
+        geometry: parcel?.geometry as { type: string; coordinates: unknown } | undefined,
         pathFromPrev: s.pathFromPrev,
       };
     }),
@@ -100,7 +101,12 @@ export default function ResultsPage() {
               <RouteResultMap
                 depot={{ lat: office.lat, lng: office.lng }}
                 routes={mapRoutes}
-                unassigned={unassignedParcels.map((p) => ({ lat: p.lat, lng: p.lng, address: p.address }))}
+                unassigned={unassignedParcels.map((p) => ({
+                  lat: p.lat,
+                  lng: p.lng,
+                  address: p.address,
+                  geometry: p.geometry as { type: string; coordinates: unknown } | undefined,
+                }))}
               />
             </div>
 
